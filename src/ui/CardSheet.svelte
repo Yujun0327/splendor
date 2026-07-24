@@ -2,6 +2,7 @@
   import { cardById } from '../data'
   import { TOKEN_COLORS } from '../engine'
   import type { Move } from '../engine'
+  import { OnlineSession } from '../app/session.svelte'
   import type { BaseSession } from '../app/session.svelte'
   import type { SheetTarget } from './interact'
   import CardBack from './CardBack.svelte'
@@ -18,6 +19,16 @@
   let { session, target, onClose }: Props = $props()
 
   const moves = $derived(session.myMoves())
+  const online = $derived(session instanceof OnlineSession ? session : null)
+
+  const blockedReason = $derived.by(() => {
+    if (session.state.result) return 'The game is over.'
+    if (session.myTurn) {
+      return session.state.pending ? 'Settle the pending choice first.' : null
+    }
+    if (online?.spectator) return 'You are watching this game.'
+    return `Waiting for ${session.names[session.actor]} to finish their turn.`
+  })
 
   const purchase = $derived.by((): (Move & { type: 'purchase' }) | null => {
     if (target.kind === 'deck') return null
@@ -96,6 +107,13 @@
             <span class="pay pip">+<GemIcon kind="gold" size={15} /></span>
           {/if}
         </button>
+        {#if session.myTurn && !reserve && !session.state.pending && !session.state.result}
+          <p class="hint">Reserve limit reached (3 cards).</p>
+        {/if}
+      {/if}
+
+      {#if blockedReason}
+        <p class="hint">{blockedReason}</p>
       {/if}
 
       <button class="btn btn--quiet" onclick={onClose}>Close</button>

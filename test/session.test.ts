@@ -4,8 +4,24 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { OnlineSession } from '../src/app/session.svelte'
 import { mulberry32, publicHash } from '../src/engine'
 import type { Move } from '../src/engine'
+import GameScreen from '../src/ui/GameScreen.svelte'
 import { Mesh } from './mesh'
 import PlayingProbe from './support/PlayingProbe.svelte'
+
+// jsdom has no Web Animations API; Svelte transitions need a finishing stub
+if (!Element.prototype.animate) {
+  Element.prototype.animate = function () {
+    const anim = {
+      cancel() {},
+      finish() {},
+      finished: Promise.resolve(),
+      set onfinish(fn: (() => void) | null) {
+        fn?.()
+      },
+    }
+    return anim as unknown as Animation
+  }
+}
 
 const ROOM = 'TESTROOM'
 
@@ -220,6 +236,73 @@ describe('play across the mesh', () => {
 
     expect(publicHash(victim.state)).toBe(publicHash(reference.state))
     expect(victim.status).toBe('playing')
+  })
+})
+
+describe('online play through the rendered UI', () => {
+  function mountGame(session: OnlineSession) {
+    const target = document.createElement('div')
+    document.body.appendChild(target)
+    const instance = mount(GameScreen, {
+      target,
+      props: { session, onExit: () => {}, onRematch: () => {} },
+    })
+    flushSync()
+    return {
+      target,
+      cleanup: () => {
+        unmount(instance)
+        target.remove()
+        document.querySelectorAll('.backdrop').forEach((n) => n.remove())
+      },
+    }
+  }
+
+  it('lets the acting player reserve via clicks and syncs it to the peer', () => {
+    const mesh = new Mesh()
+    const sessions = startGame(mesh, 2)
+    const acting = sessions.find((s) => s.myTurn)!
+    const other = sessions.find((s) => !s.myTurn)!
+    const { target, cleanup } = mountGame(acting)
+
+    const slot = [...target.querySelectorAll('button.slot')].find(
+      (b) => b.getAttribute('aria-label') === 'tier 1 card',
+    ) as HTMLButtonElement
+    slot.click()
+    flushSync()
+    const reserveBtn = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent!.trim().startsWith('Reserve'),
+    )!
+    expect(reserveBtn.disabled).toBe(false)
+    reserveBtn.click()
+    flushSync()
+    mesh.flush()
+
+    expect(acting.state.players[acting.seat!].reserved.length).toBe(1)
+    expect(acting.state.players[acting.seat!].tokens.gold).toBe(1)
+    expect(publicHash(other.state)).toBe(publicHash(acting.state)) // peer applied it
+    cleanup()
+  })
+
+  it('tells the waiting player why the card actions are unavailable', () => {
+    const mesh = new Mesh()
+    const sessions = startGame(mesh, 2)
+    const waiting = sessions.find((s) => !s.myTurn)!
+    const { target, cleanup } = mountGame(waiting)
+
+    const slot = [...target.querySelectorAll('button.slot')].find(
+      (b) => b.getAttribute('aria-label') === 'tier 1 card',
+    ) as HTMLButtonElement
+    slot.click()
+    flushSync()
+
+    const buttons = [...document.querySelectorAll('button')]
+    const buy = buttons.find((b) => b.textContent!.trim().startsWith('Purchase'))!
+    const reserveBtn = buttons.find((b) => b.textContent!.trim().startsWith('Reserve'))!
+    expect(buy.disabled).toBe(true)
+    expect(reserveBtn.disabled).toBe(true)
+    expect(document.body.textContent).toContain('to finish their turn')
+    cleanup()
   })
 })
 

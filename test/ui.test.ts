@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { flushSync, mount, unmount } from 'svelte'
 import { describe, expect, it } from 'vitest'
+import { CARDS } from '../src/data'
 import { HotseatSession } from '../src/app/session.svelte'
+import type { Gem } from '../src/engine'
 import GameScreen from '../src/ui/GameScreen.svelte'
 import Home from '../src/ui/Home.svelte'
 
@@ -84,6 +86,40 @@ describe('GameScreen (hotseat)', () => {
 
     expect(session.state.players[actorBefore].tokens.ruby).toBe(1)
     expect(session.actor).not.toBe(actorBefore)
+    cleanup()
+  })
+
+  it('purchases a card through the action sheet', () => {
+    const session = new HotseatSession(2, ['Ana', 'Bo'])
+    // bankroll the actor for the first tier-1 card so Purchase is live
+    const id = session.state.market[0][0]!
+    const def = CARDS.find((c) => c.id === id)!
+    const actor = session.actor
+    for (const [gem, n] of Object.entries(def.cost)) {
+      session.state.players[actor].tokens[gem as Gem] += n!
+      session.state.bank[gem as Gem] -= n!
+    }
+    const { target, cleanup } = render(GameScreen, {
+      session,
+      onExit: () => {},
+      onRematch: () => {},
+    })
+
+    const slot = [...target.querySelectorAll('button.slot')].find(
+      (b) => b.getAttribute('aria-label') === 'tier 1 card',
+    ) as HTMLButtonElement
+    slot.click()
+    flushSync()
+    const buy = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent!.trim().startsWith('Purchase'),
+    )!
+    expect(buy.disabled).toBe(false)
+    buy.click()
+    flushSync()
+
+    expect(session.state.players[actor].cards).toContain(id)
+    expect(session.state.market[0][0]).not.toBe(id) // slot refilled
+    expect(document.querySelector('.backdrop')).toBe(null)
     cleanup()
   })
 

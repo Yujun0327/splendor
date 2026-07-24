@@ -1,4 +1,6 @@
 <script lang="ts">
+  import RulesLeaflet from './RulesLeaflet.svelte'
+
   interface Props {
     onHotseat: (playerCount: 2 | 3 | 4, names: string[]) => void
     onCreateRoom?: () => void
@@ -10,6 +12,7 @@
   let playerCount = $state<2 | 3 | 4>(2)
   let names = $state(['', '', '', ''])
   let joinCode = $state('')
+  let rulesOpen = $state(false)
 
   const online = $derived(onCreateRoom !== undefined && onJoinRoom !== undefined)
 </script>
@@ -20,6 +23,7 @@
     <h1 class="foil-text">Splendor</h1>
     <span class="rule" aria-hidden="true"></span>
     <p class="label">Gems · Cards · Nobles</p>
+    <button class="btn btn--quiet" onclick={() => (rulesOpen = true)}>How to play</button>
   </header>
 
   <div class="panels">
@@ -88,6 +92,10 @@
     </section>
   </div>
 </main>
+
+{#if rulesOpen}
+  <RulesLeaflet onClose={() => (rulesOpen = false)} />
+{/if}
 
 <style>
   .home {

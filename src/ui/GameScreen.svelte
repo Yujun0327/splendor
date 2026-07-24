@@ -15,6 +15,7 @@
   import NobleChoiceDialog from './NobleChoiceDialog.svelte'
   import NobleTile from './NobleTile.svelte'
   import OpponentStrip from './OpponentStrip.svelte'
+  import RulesLeaflet from './RulesLeaflet.svelte'
   import TokenReturnDialog from './TokenReturnDialog.svelte'
   import VictoryOverlay from './VictoryOverlay.svelte'
 
@@ -29,6 +30,7 @@
   let selection = $state<Gem[]>([])
   let sheet = $state<SheetTarget | null>(null)
   let muted = $state(isMuted())
+  let rulesOpen = $state(false)
 
   // foley: play whatever the session just emitted
   let seenEvent = -1
@@ -79,6 +81,7 @@
     <button class="btn btn--quiet exit" onclick={toggleMute} aria-label={muted ? 'unmute' : 'mute'}>
       {muted ? 'Sound off' : 'Sound on'}
     </button>
+    <button class="btn btn--quiet exit" onclick={() => (rulesOpen = true)}>Rules</button>
     <div class="turn">
       <span class="turnline">{turnLine}</span>
       {#if session.state.finalRound && !session.state.result}
@@ -130,6 +133,9 @@
   </main>
 </div>
 
+{#if rulesOpen}
+  <RulesLeaflet onClose={() => (rulesOpen = false)} />
+{/if}
 {#if sheet}
   <CardSheet {session} target={sheet} onClose={() => (sheet = null)} />
 {/if}
