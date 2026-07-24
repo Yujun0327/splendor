@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition'
   import { prestige } from '../engine'
   import type { BaseSession } from '../app/session.svelte'
   import Modal from './Modal.svelte'
+  import { dur, settle } from './motion'
 
   interface Props {
     session: BaseSession
@@ -34,8 +36,11 @@
           </tr>
         </thead>
         <tbody>
-          {#each result.ranking as seat (seat)}
-            <tr class:winner={result.winners.includes(seat)}>
+          {#each result.ranking as seat, i (seat)}
+            <tr
+              class:winner={result.winners.includes(seat)}
+              in:fly={{ y: 14, duration: dur(300), delay: dur(180 + i * 140), easing: settle }}
+            >
               <td>{session.names[seat]}</td>
               <td class="num tabular">{prestige(session.state.players[seat])}</td>
               <td class="num tabular">{session.state.players[seat].cards.length}</td>

@@ -1,8 +1,12 @@
 <script lang="ts">
+  import { flip } from 'svelte/animate'
+  import { scale } from 'svelte/transition'
   import { nobleById } from '../data'
   import type { Gem, Seat } from '../engine'
   import { OnlineSession } from '../app/session.svelte'
   import type { BaseSession } from '../app/session.svelte'
+  import { isMuted, play, setMuted } from './audio'
+  import { dur } from './motion'
   import type { SheetTarget } from './interact'
   import BankRow from './BankRow.svelte'
   import CardSheet from './CardSheet.svelte'
@@ -24,6 +28,27 @@
 
   let selection = $state<Gem[]>([])
   let sheet = $state<SheetTarget | null>(null)
+  let muted = $state(isMuted())
+
+  // foley: play whatever the session just emitted
+  let seenEvent = -1
+  $effect(() => {
+    const last = session.events.at(-1)
+    if (last && last.id > seenEvent) {
+      seenEvent = last.id
+      play(last.sfx)
+    }
+  })
+
+  function toggleMute() {
+    muted = !muted
+    setMuted(muted)
+  }
+
+  function updateSelection(next: Gem[]) {
+    if (next.length > selection.length) play('select')
+    selection = next
+  }
 
   /** The seat shown as "mine" at the bottom: fixed online, the actor in hotseat. */
   const me = $derived<Seat>(session.mySeat ?? session.actor)
@@ -51,6 +76,9 @@
 <div class="screen">
   <header class="topbar">
     <button class="btn btn--quiet exit" onclick={onExit}>Leave</button>
+    <button class="btn btn--quiet exit" onclick={toggleMute} aria-label={muted ? 'unmute' : 'mute'}>
+      {muted ? 'Sound off' : 'Sound on'}
+    </button>
     <div class="turn">
       <span class="turnline">{turnLine}</span>
       {#if session.state.finalRound && !session.state.result}
@@ -73,7 +101,13 @@
   <main class="table">
     <section class="nobles" aria-label="nobles">
       {#each session.state.nobles as id (id)}
-        <div class="noble"><NobleTile noble={nobleById.get(id)!} /></div>
+        <div
+          class="noble"
+          animate:flip={{ duration: dur(300) }}
+          out:scale={{ duration: dur(320), start: 1.06 }}
+        >
+          <NobleTile noble={nobleById.get(id)!} />
+        </div>
       {/each}
     </section>
 
@@ -82,7 +116,7 @@
     </section>
 
     <section class="bank-area">
-      <BankRow {session} {selection} onSelection={(s) => (selection = s)} />
+      <BankRow {session} {selection} onSelection={updateSelection} />
       {#if passOnly}
         <button class="btn btn--gold" onclick={() => session.submit(passOnly)}>
           Pass — no move available

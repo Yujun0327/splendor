@@ -1,10 +1,12 @@
 <script lang="ts">
+  import { fly } from 'svelte/transition'
   import { cardById } from '../data'
   import type { Tier } from '../engine'
   import type { BaseSession } from '../app/session.svelte'
   import type { SheetTarget } from './interact'
   import CardBack from './CardBack.svelte'
   import CardFace from './CardFace.svelte'
+  import { dur, settle } from './motion'
 
   interface Props {
     session: BaseSession
@@ -41,10 +43,12 @@
           <div class="empty"><span class="lozenge"></span></div>
         {/if}
       </button>
-      {#each row as card, slot (slot)}
+      {#each row as card, slot (`${slot}:${card}`)}
         {#if card !== null}
+          <!-- keyed on the card id so refills re-deal from the deck's direction -->
           <button
             class="slot"
+            in:fly={{ x: -24, duration: dur(260), delay: dur(40 * slot), easing: settle }}
             onclick={() => onOpen({ kind: 'market', tier, slot, card })}
             aria-label="tier {tier} card"
           >

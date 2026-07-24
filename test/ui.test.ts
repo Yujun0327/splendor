@@ -5,6 +5,22 @@ import { HotseatSession } from '../src/app/session.svelte'
 import GameScreen from '../src/ui/GameScreen.svelte'
 import Home from '../src/ui/Home.svelte'
 
+// jsdom has no Web Animations API; give Svelte transitions an instantly-
+// finishing stand-in so intros/outros complete synchronously.
+if (!Element.prototype.animate) {
+  Element.prototype.animate = function () {
+    const anim = {
+      cancel() {},
+      finish() {},
+      finished: Promise.resolve(),
+      set onfinish(fn: (() => void) | null) {
+        fn?.()
+      },
+    }
+    return anim as unknown as Animation
+  }
+}
+
 function render(component: Parameters<typeof mount>[0], props: Record<string, unknown>) {
   const target = document.createElement('div')
   document.body.appendChild(target)

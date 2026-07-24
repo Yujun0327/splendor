@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { fade, fly } from 'svelte/transition'
+  import { dur, settle } from './motion'
 
   interface Props {
     onClose?: () => void
@@ -16,8 +18,15 @@
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onClose?.()} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
-<div class="backdrop" onclick={backdrop} role="dialog" aria-modal="true" tabindex="-1">
-  <div class="sheet">
+<div
+  class="backdrop"
+  onclick={backdrop}
+  role="dialog"
+  aria-modal="true"
+  tabindex="-1"
+  transition:fade={{ duration: dur(160) }}
+>
+  <div class="sheet" transition:fly={{ y: 26, duration: dur(260), easing: settle }}>
     {@render children()}
   </div>
 </div>
