@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
+import { flushSync, mount, unmount } from 'svelte'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { OnlineSession } from '../src/app/session.svelte'
 import { mulberry32, publicHash } from '../src/engine'
 import type { Move } from '../src/engine'
 import { Mesh } from './mesh'
+import PlayingProbe from './support/PlayingProbe.svelte'
 
 const ROOM = 'TESTROOM'
 
@@ -67,6 +69,82 @@ describe('lobby', () => {
     }
     expect([host.seat, b.seat, c.seat].sort()).toEqual([0, 1, 2])
     expect(publicHash(b.state)).toBe(publicHash(host.state))
+  })
+
+  it('renders the lobby→game transition reactively on every client', () => {
+    // regression: `playing` short-circuits on `started`; if that field is not
+    // reactive the template tracks nothing while false and never flips
+    const mesh = new Mesh()
+    const host = addPeer(mesh, 0, true)
+    mesh.flush()
+    const guest = addPeer(mesh, 1)
+    mesh.flush()
+
+    const targets = [host, guest].map((session) => {
+      const target = document.createElement('div')
+      document.body.appendChild(target)
+      const instance = mount(PlayingProbe, { target, props: { session } })
+      return { target, instance }
+    })
+    flushSync()
+    expect(targets.map((t) => t.target.textContent)).toEqual(['LOBBY', 'LOBBY'])
+
+    host.setReady(true)
+    guest.setReady(true)
+    mesh.flush()
+    host.startGame()
+    mesh.flush()
+    flushSync()
+
+    expect(targets.map((t) => t.target.textContent)).toEqual(['GAME', 'GAME'])
+    for (const t of targets) {
+      unmount(t.instance)
+      t.target.remove()
+    }
+  })
+
+  it('drops a departed seat so it cannot ghost-block the start', () => {
+    const mesh = new Mesh()
+    const host = addPeer(mesh, 0, true)
+    mesh.flush()
+    const b = addPeer(mesh, 1)
+    const c = addPeer(mesh, 2)
+    mesh.flush()
+    for (const s of [host, b, c]) {
+      s.setReady(true)
+      mesh.flush()
+    }
+    expect(host.canStart).toBe(true)
+
+    // c closes the tab without un-readying — the seat must vanish, not linger
+    mesh.drop('peer-2')
+    c.destroy()
+    mesh.flush()
+    expect(host.seats.length).toBe(2)
+    expect(host.canStart).toBe(true)
+
+    host.startGame()
+    mesh.flush()
+    expect(host.cfg.playerCount).toBe(2)
+    expect(b.playing).toBe(true)
+  })
+
+  it('seats a ready claim that raced ahead of its hello', () => {
+    const mesh = new Mesh()
+    const host = addPeer(mesh, 0, true)
+    mesh.flush()
+
+    // the joiner's hello to the host is lost; only the host's hello arrives
+    mesh.filter = (msg, from, to) => !(msg.t === 'hello' && from === 'peer-1' && to === 'peer-0')
+    const guest = addPeer(mesh, 1)
+    mesh.flush()
+    expect(host.seats.length).toBe(1) // hello never landed
+
+    mesh.filter = () => true
+    guest.setReady(true) // claimSeat reaches the host and seats them
+    mesh.flush()
+    expect(host.seats.length).toBe(2)
+    expect(host.seats[1]).toMatchObject({ playerKey: 'key-1', ready: true, connected: true })
   })
 
   it('turns a fifth arrival away', () => {

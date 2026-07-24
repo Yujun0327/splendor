@@ -152,7 +152,12 @@ export class OnlineSession extends BaseSession {
   private gameId = ''
   private seatOf: Record<string, Seat> = {}
   private creator: boolean
-  private started = false
+  /**
+   * Reactive on purpose: `playing` short-circuits on it, so if it were a
+   * plain field the App-level `{#if online.playing}` would track no
+   * dependencies while false and never notice the game starting.
+   */
+  private started = $state(false)
   private keyByPeer = new Map<string, string>()
   private hostPeerId: string | null = null
 
@@ -260,15 +265,16 @@ export class OnlineSession extends BaseSession {
       this.broadcastLobby()
     } else {
       const mine = this.seats.find((s) => s.playerKey === this.myKey)
-      this.transport.send(
-        {
-          t: 'claimSeat',
-          playerKey: this.myKey,
-          name: patch.name ?? this.myName,
-          ready: patch.ready ?? mine?.ready ?? false,
-        },
-        this.hostPeerId ?? undefined,
-      )
+      const claim = {
+        t: 'claimSeat' as const,
+        playerKey: this.myKey,
+        name: patch.name ?? this.myName,
+        ready: patch.ready ?? mine?.ready ?? false,
+      }
+      // optimistic: reflect my own toggle immediately; the host's next
+      // lobby broadcast remains authoritative
+      this.seats = this.seats.map((s) => (s.playerKey === this.myKey ? { ...s, ...patch } : s))
+      this.transport.send(claim, this.hostPeerId ?? undefined)
     }
   }
 
@@ -279,7 +285,7 @@ export class OnlineSession extends BaseSession {
       !this.started &&
       filled.length >= 2 &&
       filled.length <= MAX_SEATS &&
-      filled.every((s) => s.ready)
+      filled.every((s) => s.ready && s.connected)
     )
   }
 
@@ -345,7 +351,9 @@ export class OnlineSession extends BaseSession {
     this.keyByPeer.delete(peerId)
     this.peersHere = { ...this.peersHere, [key]: false }
     if (this.isHost && !this.started) {
-      this.seats = this.seats.map((s) => (s.playerKey === key ? { ...s, connected: false } : s))
+      // pre-game, a vanished peer must not ghost-block the start: drop the
+      // seat entirely — their hello re-seats them if they come back
+      this.seats = this.seats.filter((s) => s.playerKey !== key)
       this.broadcastLobby()
     }
   }
@@ -367,9 +375,17 @@ export class OnlineSession extends BaseSession {
 
       case 'claimSeat': {
         if (!this.isHost || this.started) return
-        this.seats = this.seats.map((s) =>
-          s.playerKey === msg.playerKey ? { ...s, name: msg.name, ready: msg.ready } : s,
-        )
+        if (this.seats.some((s) => s.playerKey === msg.playerKey)) {
+          this.seats = this.seats.map((s) =>
+            s.playerKey === msg.playerKey ? { ...s, name: msg.name, ready: msg.ready } : s,
+          )
+        } else if (this.seats.filter((s) => s.playerKey !== null).length < MAX_SEATS) {
+          // the claim raced ahead of (or lost) the hello — seat them now
+          this.seats = [
+            ...this.seats,
+            { playerKey: msg.playerKey, name: msg.name, ready: msg.ready, connected: true },
+          ]
+        }
         this.broadcastLobby()
         return
       }
