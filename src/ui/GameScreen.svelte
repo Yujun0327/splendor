@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nobleById } from '../data'
   import type { Gem, Seat } from '../engine'
+  import { OnlineSession } from '../app/session.svelte'
   import type { BaseSession } from '../app/session.svelte'
   import type { SheetTarget } from './interact'
   import BankRow from './BankRow.svelte'
@@ -37,9 +38,12 @@
     return moves.length === 1 && moves[0].type === 'pass' ? moves[0] : null
   })
 
+  const online = $derived(session instanceof OnlineSession ? session : null)
+
   const turnLine = $derived.by(() => {
     if (session.state.result) return 'Game over'
     if (session.mode === 'hotseat') return `${session.names[session.actor]} to play`
+    if (online?.spectator) return `Watching — ${session.names[session.actor]} to play`
     return session.myTurn ? 'Your turn' : `${session.names[session.actor]} is thinking…`
   })
 </script>
@@ -59,6 +63,12 @@
       {/each}
     </div>
   </header>
+
+  {#if online?.status === 'desync'}
+    <div class="notice">Out of step with the table — resynchronizing…</div>
+  {:else if online?.waitingOn}
+    <div class="notice">Waiting for {online.waitingOn} to reconnect…</div>
+  {/if}
 
   <main class="table">
     <section class="nobles" aria-label="nobles">
@@ -136,6 +146,16 @@
 
   .final {
     color: var(--gold-hi);
+  }
+
+  .notice {
+    background: color-mix(in srgb, var(--gold) 14%, var(--lacquer));
+    color: var(--gold-hi);
+    border-radius: var(--r-chip);
+    box-shadow: var(--hairline-dim);
+    padding: var(--sp-2) var(--sp-4);
+    text-align: center;
+    letter-spacing: 0.04em;
   }
 
   .opponents {
