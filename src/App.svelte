@@ -41,6 +41,11 @@
 
   const showGallery = $derived(import.meta.env.DEV && hash === '#gallery')
 
+  // debugging handle (harmless in prod; used by the E2E harness)
+  $effect(() => {
+    ;(window as unknown as Record<string, unknown>).__splendor = online ?? hotseat
+  })
+
   // dev-only: auto-seat a 3P hotseat game for visual QA / screenshots
   $effect(() => {
     if (import.meta.env.DEV && hash === '#demo' && !hotseat) {

@@ -130,8 +130,14 @@ h3 {
   color: var(--ivory);
 }
 
-button {
+button,
+input {
   font: inherit;
+  /* no double-tap-to-zoom: quick same-spot taps (pair takes!) must land as two clicks */
+  touch-action: manipulation;
+}
+
+button {
   cursor: pointer;
 }
 

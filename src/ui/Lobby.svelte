@@ -114,7 +114,9 @@
             Share the invite — friends joining will appear here.
           {/if}
           {#if waitedLong && filled.length <= 1}
-            Still quiet — check that everyone uses the same room code, or try a fresh room.
+            Still quiet — check the room code, and make sure everyone opened the link in a real
+            browser (Chrome or Safari, not a messenger's built-in one). Switching between Wi-Fi
+            and mobile data sometimes unblocks a stubborn connection.
           {/if}
         {:else if session.isHost}
           Start needs at least two seated players, everyone ready.

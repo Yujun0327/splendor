@@ -42,6 +42,16 @@
     }
   })
 
+  // Every applied move replaces `state`; picks from before it are void.
+  // Without this, a selection left over from a card action (or a previous
+  // hotseat player) silently blocks pair-takes: with a stale gem selected,
+  // tapping another color twice adds-then-removes it and no legal take
+  // ever matches.
+  $effect(() => {
+    void session.state
+    selection = []
+  })
+
   function toggleMute() {
     muted = !muted
     setMuted(muted)

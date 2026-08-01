@@ -89,6 +89,43 @@ describe('GameScreen (hotseat)', () => {
     cleanup()
   })
 
+  it('clears a stale token selection when a move is applied, so pair-takes work next turn', () => {
+    const session = new HotseatSession(2, ['Ana', 'Bo'])
+    const { target, cleanup } = render(GameScreen, {
+      session,
+      onExit: () => {},
+      onRematch: () => {},
+    })
+
+    const chip = (label: string) =>
+      [...target.querySelectorAll('button')].find((b) =>
+        b.getAttribute('aria-label')?.startsWith(label),
+      )!
+
+    // player selects a gem but then reserves a card instead — the pick must not linger
+    chip('take emerald').click()
+    flushSync()
+    expect(target.querySelector('.chip.selected')).not.toBe(null)
+    session.submit({ type: 'reserve', from: { deck: 1 } })
+    flushSync()
+    expect(target.querySelector('.chip.selected')).toBe(null)
+
+    // next player can now build a pair with two taps on a full stack
+    chip('take ruby').click()
+    flushSync()
+    chip('take ruby').click()
+    flushSync()
+    const confirm = [...target.querySelectorAll('button')].find((b) =>
+      b.textContent!.includes('Take'),
+    )!
+    expect(confirm.disabled).toBe(false)
+    const actor = session.actor
+    confirm.click()
+    flushSync()
+    expect(session.state.players[actor].tokens.ruby).toBe(2)
+    cleanup()
+  })
+
   it('purchases a card through the action sheet', () => {
     const session = new HotseatSession(2, ['Ana', 'Bo'])
     // bankroll the actor for the first tier-1 card so Purchase is live

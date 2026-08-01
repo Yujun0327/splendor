@@ -23,14 +23,23 @@ export function connectRoom(code: string): Transport {
     {
       appId: APP_ID,
       relayConfig: { urls: RELAY_URLS, redundancy: RELAY_URLS.length },
-      // free public TURN fallback so strict/carrier-grade NATs can still connect
-      turnConfig: [
-        {
-          urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443'],
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
-        },
-      ],
+      // Several STUN options plus TURN fallbacks (including tcp/443 variants,
+      // which are the only route out of some mobile/corporate networks).
+      rtcConfig: {
+        iceServers: [
+          { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+          {
+            urls: [
+              'turn:openrelay.metered.ca:80',
+              'turn:openrelay.metered.ca:443',
+              'turn:openrelay.metered.ca:443?transport=tcp',
+              'turns:openrelay.metered.ca:443?transport=tcp',
+            ],
+            username: 'openrelayproject',
+            credential: 'openrelayproject',
+          },
+        ],
+      },
     },
     code.toUpperCase(),
     { onJoinError: (err) => console.warn('[splendor] room join error', err) },
