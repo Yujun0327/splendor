@@ -25,6 +25,6 @@
     "@fontsource/cormorant-garamond": "^5.2.8",
     "@fontsource/jost": "^5.2.8",
     "@fontsource/marcellus": "^5.2.8",
-    "@yujun/game-net": "github:Yujun0327/game-net#v0.1.0"
+    "@yujun/game-net": "github:Yujun0327/game-net#v0.2.1"
   }
 }
