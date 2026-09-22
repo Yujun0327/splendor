@@ -1,7 +1,9 @@
 <script lang="ts">
+  import PayoutLine from './PayoutLine.svelte'
   import { fly } from 'svelte/transition'
   import { prestige } from '../engine'
-  import type { BaseSession } from '../app/session.svelte'
+  import { OnlineSession } from '../app/session.svelte'
+import type { BaseSession } from '../app/session.svelte'
   import Modal from './Modal.svelte'
   import { dur, settle } from './motion'
 
@@ -12,6 +14,8 @@
   }
 
   let { session, onRematch, onExit }: Props = $props()
+
+  const online = $derived(session instanceof OnlineSession ? session : null)
 
   const result = $derived(session.state.result)
 </script>
@@ -53,6 +57,7 @@
       {/if}
 
       <div class="row">
+        <PayoutLine payout={online?.payout ?? null} lock={online?.lockState ?? null} />
         <button class="btn btn--gold" onclick={onRematch}>Rematch</button>
         <button class="btn btn--quiet" onclick={onExit}>Leave the table</button>
       </div>

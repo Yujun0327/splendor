@@ -1,4 +1,5 @@
 <script lang="ts">
+  import WalletBadge from './WalletBadge.svelte'
   import RulesLeaflet from './RulesLeaflet.svelte'
 
   interface Props {
@@ -25,6 +26,7 @@
     <p class="label">Gems · Cards · Nobles</p>
     <button class="btn btn--quiet" onclick={() => (rulesOpen = true)}>How to play</button>
   </header>
+  <WalletBadge />
 
   <div class="panels">
     <section class="card">
