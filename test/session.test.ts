@@ -194,7 +194,7 @@ describe('play across the mesh', () => {
 
     for (let step = 0; step < 4000 && !sessions[0].state.result; step++) {
       const current = sessions.find((s) => s.myTurn)
-      if (current) {
+      if (current && !current.state.result) {
         const moves = current.myMoves()
         expect(moves.length).toBeGreaterThan(0)
         const purchases = moves.filter((m) => m.type === 'purchase')

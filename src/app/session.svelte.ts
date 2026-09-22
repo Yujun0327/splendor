@@ -60,6 +60,13 @@ export abstract class BaseSession {
     const before = this.state
     const after = applyMove(before, actor, move)
     this.state = after
+    this.emitFor(before, after, actor, move)
+  }
+
+  /** Derive sound effects from one applied transition. */
+  protected emitFor(before: GameState, after: GameState, actor: Seat, move: Move): void {
+    void before
+    void actor
 
     if (move.type === 'take') this.emit('take')
     if (move.type === 'reserve') this.emit('reserve')
@@ -133,36 +140,40 @@ function placeholderConfig(): GameConfig {
   return { playerCount: 2, sharedSeed: 0, startingSeat: 0, names: ['—', '—'], rulesVersion: RULES_VERSION }
 }
 
-/**
- * Splendor on the shared beacon session. Turn-holder sequencing is valid
- * because Splendor never has concurrent decisions: at any seq exactly one
- * seat may act and every in-sync client agrees which.
- */
-const adapter: GameAdapter<GameConfig, GameState, Move> = {
-  app: APP,
-  protocol: 2,
-  rulesVersion: RULES_VERSION,
-  minSeats: 2,
-  maxSeats: 4,
-  makeConfig: (players, prev) => {
-    if (players.length < 2) return placeholderConfig()
-    const playerCount = players.length as 2 | 3 | 4
-    return {
-      playerCount,
-      sharedSeed: crypto.getRandomValues(new Uint32Array(1))[0],
-      startingSeat: prev ? (prev.startingSeat + 1) % playerCount : Math.floor(Math.random() * playerCount),
-      names: players.map((p, i) => p.name.trim() || `Player ${i + 1}`),
-      rulesVersion: RULES_VERSION,
-    }
-  },
-  create: (cfg) => ({ state: createGame(cfg) }),
-  apply: applyMove,
-  hash: publicHash,
-  actor: (s) => s.pending?.actor ?? s.turn,
-  isOver: (s) => s.result !== null,
-}
-
 type Core = BeaconSession<GameConfig, GameState, Move>
+
+/**
+ * splendor on the shared beacon session (see @yujun/game-net). Turn-holder
+ * sequencing is valid because the game never has concurrent decisions: at
+ * any seq exactly one seat may act and every in-sync client agrees which.
+ * `host` gives the adapter the host's lobby options at start time.
+ */
+function makeAdapter(host: () => OnlineSession | null): GameAdapter<GameConfig, GameState, Move> {
+  return {
+    app: APP,
+    protocol: 2,
+    rulesVersion: RULES_VERSION,
+    minSeats: 2,
+    maxSeats: 4,
+    makeConfig: (players, prev) => {
+      if (players.length < 2) return placeholderConfig()
+      const playerCount = players.length as 2 | 3 | 4
+      return {
+        ...placeholderConfig(),
+        playerCount,
+        sharedSeed: crypto.getRandomValues(new Uint32Array(1))[0],
+        startingSeat: prev ? (prev.startingSeat + 1) % playerCount : Math.floor(Math.random() * playerCount),
+        names: players.map((p, i) => p.name.trim() || `Player ${i + 1}`),
+        rulesVersion: RULES_VERSION,
+      }
+    },
+    create: (cfg) => ({ state: createGame(cfg) }),
+    apply: applyMove,
+    hash: publicHash,
+    actor: (s) => s.pending?.actor ?? s.turn,
+    isOver: (s) => s.result !== null,
+  }
+}
 
 export interface OnlineTestHooks {
   transport?: Transport<Beacon<GameConfig, Move>>
@@ -188,7 +199,8 @@ export class OnlineSession extends BaseSession {
   private prev: GameState
 
   constructor(room: string, creator: boolean, identity: { key: string; name: string }, test: OnlineTestHooks = {}) {
-    const core: Core = new BeaconSession(adapter, {
+    const self: { s: OnlineSession | null } = { s: null }
+    const core: Core = new BeaconSession(makeAdapter(() => self.s), {
       room,
       creator,
       identity,
@@ -199,6 +211,7 @@ export class OnlineSession extends BaseSession {
       log: (t) => console.log(`[${APP}] ${t}`),
     })
     super(core.cfg ?? placeholderConfig(), core.state)
+    self.s = this
     this.core = core
     this.room = core.room
     this.myKey = core.myKey
@@ -227,15 +240,12 @@ export class OnlineSession extends BaseSession {
     const log = core.snapshot?.log ?? []
     const fresh = log.length - this.seenLog
     if (fresh > 0 && fresh <= 2) {
+      // replay just the new moves to derive the transition sounds
+      let st = this.prev
       for (const wire of log.slice(this.seenLog)) {
-        const t = wire.move.type
-        if (t === 'take' || t === 'reserve' || t === 'purchase' || t === 'return') this.emit(t)
-      }
-      const nobleCount = (s: GameState) => s.players.reduce((n, p) => n + p.nobles.length, 0)
-      if (nobleCount(core.state) > nobleCount(this.prev)) this.emit('noble')
-      if (!this.prev.result && core.state.result) {
-        const won = this.seat !== null && core.state.result.winners.includes(this.seat)
-        this.emit(won ? 'win' : 'lose')
+        const next = applyMove(st, wire.actor, wire.move)
+        this.emitFor(st, next, wire.actor, wire.move)
+        st = next
       }
     }
     this.seenLog = log.length
